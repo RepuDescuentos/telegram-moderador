@@ -73,7 +73,7 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # =========================================================
 
     advertencia = (
-        f"⚠️ <b>{nombre}</b>, ¡Metete el enlace por el ORTO! 😂\n\n"
+        f"⚠️ <b>{nombre}</b>, ¡Metete el enlace por el ORTO HIJUEPUTA! 😂\n\n"
         "Esta prohibido publicar cualquier tipo de enlaces."
     )
 
