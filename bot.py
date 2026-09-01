@@ -32,11 +32,15 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not message or not message.from_user:
         return
 
-    # Comprobar si quien publicó es administrador
-    member = await context.bot.get_chat_member(
-        update.effective_chat.id,
-        message.from_user.id
-    )
+    # Comprobar quién publicó el mensaje
+    try:
+        member = await context.bot.get_chat_member(
+            update.effective_chat.id,
+            message.from_user.id
+        )
+    except Exception as e:
+        print(f"Error comprobando administrador: {e}")
+        return
 
     # Los administradores quedan exentos
     if member.status in ("administrator", "creator"):
@@ -47,12 +51,13 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     usuario = message.from_user
-
-    # Nombre que aparecerá en la advertencia
     nombre = usuario.full_name
 
+    # =========================================================
+    # 1. ELIMINAR EL MENSAJE
+    # =========================================================
+
     try:
-        # Primero eliminamos el mensaje
         await message.delete()
 
         print(
@@ -60,20 +65,29 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{usuario.username or usuario.id}"
         )
 
-        # Enviar advertencia
-        advertencia = (
-            f"⚠️ <b>{nombre}</b>, ¡Metete el enlace por el ORTO! 😂\n\n"
-            "Esta prohibido publicar cualquier tipo de enlaces."
-        )
+    except Exception as e:
+        print(f"❌ No se pudo eliminar el mensaje: {e}")
 
+    # =========================================================
+    # 2. ENVIAR ADVERTENCIA
+    # =========================================================
+
+    advertencia = (
+        f"⚠️ <b>{nombre}</b>, ¡Metete el enlace por el ORTO! 😂\n\n"
+        "Esta prohibido publicar cualquier tipo de enlaces."
+    )
+
+    try:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=advertencia,
             parse_mode="HTML"
         )
 
+        print(f"⚠️ Advertencia enviada a {nombre}")
+
     except Exception as e:
-        print(f"No se pudo procesar el mensaje: {e}")
+        print(f"❌ NO se pudo enviar la advertencia: {e}")
 
 
 def main():
