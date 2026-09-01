@@ -12,14 +12,11 @@ URL_REGEX = re.compile(
 
 
 def contiene_enlace(message):
-    # Texto normal
     text = message.text or message.caption or ""
 
     if URL_REGEX.search(text):
         return True
 
-    # Detectar enlaces ocultos en texto, por ejemplo:
-    # "Haz clic aquí" -> https://ejemplo.com
     entities = message.entities or message.caption_entities or []
 
     for entity in entities:
@@ -41,22 +38,42 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message.from_user.id
     )
 
-    # Administradores y propietario quedan excluidos
+    # Los administradores quedan exentos
     if member.status in ("administrator", "creator"):
         return
 
-    # Eliminar si contiene un enlace
-    if contiene_enlace(message):
-        try:
-            await message.delete()
+    # Si no contiene enlace, no hacer nada
+    if not contiene_enlace(message):
+        return
 
-            print(
-                f"Mensaje eliminado de "
-                f"{message.from_user.username or message.from_user.id}"
-            )
+    usuario = message.from_user
 
-        except Exception as e:
-            print(f"No se pudo eliminar el mensaje: {e}")
+    # Nombre que aparecerá en la advertencia
+    nombre = usuario.full_name
+
+    try:
+        # Primero eliminamos el mensaje
+        await message.delete()
+
+        print(
+            f"Mensaje eliminado de "
+            f"{usuario.username or usuario.id}"
+        )
+
+        # Enviar advertencia
+        advertencia = (
+            f"⚠️ <b>{nombre}</b>, ¡Metete el enlace por el ORTO! 😂\n\n"
+            "Esta prohibido publicar cualquier tipo de enlaces."
+        )
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=advertencia,
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        print(f"No se pudo procesar el mensaje: {e}")
 
 
 def main():
