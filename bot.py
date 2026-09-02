@@ -40,19 +40,20 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not message:
         return
 
-    # =========================================================
-    # INFORMACIÓN DEL MENSAJE
-    # =========================================================
-
     usuario = message.from_user
     sender_chat = message.sender_chat
+    chat_actual = update.effective_chat
+
+    # =========================================================
+    # INFORMACIÓN
+    # =========================================================
 
     print("========================================")
     print("📩 NUEVO MENSAJE")
-    print(f"💬 CHAT ID: {update.effective_chat.id}")
+    print(f"💬 CHAT ACTUAL: {chat_actual.id}")
 
     if usuario:
-        print(f"👤 USER: {usuario.full_name}")
+        print(f"👤 USUARIO: {usuario.full_name}")
         print(f"🆔 USER ID: {usuario.id}")
         print(f"👤 USERNAME: @{usuario.username}")
 
@@ -61,87 +62,119 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"📢 SENDER CHAT ID: {sender_chat.id}")
         print(f"📢 SENDER CHAT TYPE: {sender_chat.type}")
 
-    print(f"👑 OWNER_ID CONFIGURADO: {OWNER_ID}")
-    print("========================================")
+    print(f"👑 OWNER_ID: {OWNER_ID}")
 
     # =========================================================
-    # EXCEPCIÓN 1: OWNER POR USER ID
+    # 1. EXCEPCIÓN DEL OWNER POR USER ID
     # =========================================================
 
     if usuario and usuario.id == OWNER_ID:
-        print("👑 OWNER DETECTADO POR USER ID → IGNORANDO")
+        print("👑 OWNER DETECTADO → MENSAJE IGNORADO")
+        print("========================================")
         return
 
     # =========================================================
-    # EXCEPCIÓN 2: MENSAJE ENVIADO COMO CHAT/CANAL
+    # 2. DETECTAR EL CANAL PRINCIPAL VINCULADO
     # =========================================================
     #
-    # En grupos de discusión Telegram puede utilizar
-    # message.sender_chat en lugar de from_user.
+    # Cuando estamos dentro del grupo de discusión, Telegram
+    # puede identificar los mensajes del canal principal
+    # mediante message.sender_chat.
     #
-    # Si existe sender_chat, comprobamos si ese chat
-    # corresponde al chat donde se está publicando.
-    #
-    # Esto evita que el bot trate automáticamente como
-    # usuario normal ciertos mensajes enviados como identidad
-    # del canal/chat.
+    # Telegram nos permite saber cuál es el canal vinculado
+    # al grupo mediante linked_chat_id.
     # =========================================================
 
-    if sender_chat:
+    try:
 
-        # Si el mensaje está enviado como el propio chat
-        # donde se encuentra el mensaje, no moderarlo.
-        if sender_chat.id == update.effective_chat.id:
-            print("📢 MENSAJE ENVIADO COMO EL CHAT → IGNORANDO")
+        chat_info = await context.bot.get_chat(chat_actual.id)
+
+        linked_chat_id = chat_info.linked_chat_id
+
+        print(f"🔗 CANAL VINCULADO: {linked_chat_id}")
+
+        if (
+            sender_chat
+            and linked_chat_id
+            and sender_chat.id == linked_chat_id
+        ):
+            print(
+                "👑 MENSAJE DEL CANAL PRINCIPAL "
+                "EN LA DISCUSIÓN → IGNORADO"
+            )
+            print("========================================")
             return
 
+    except Exception as e:
+
+        print(
+            f"⚠️ No se pudo comprobar el canal vinculado: {e}"
+        )
+
     # =========================================================
-    # COMPROBAR ADMINISTRADOR / OWNER DEL GRUPO
+    # 3. COMPROBAR ADMINISTRADOR / OWNER DEL GRUPO
     # =========================================================
 
     if usuario:
 
         try:
+
             member = await context.bot.get_chat_member(
-                update.effective_chat.id,
+                chat_actual.id,
                 usuario.id
             )
 
-            print(f"🔐 STATUS TELEGRAM: {member.status}")
+            print(
+                f"🔐 STATUS DEL USUARIO: {member.status}"
+            )
 
             # OWNER DEL GRUPO
             if member.status == "creator":
-                print("👑 CREATOR/OWNER DEL GRUPO → IGNORANDO")
+
+                print(
+                    "👑 CREATOR/OWNER DEL GRUPO → IGNORADO"
+                )
+                print("========================================")
                 return
 
-            # ADMINISTRADORES
+            # ADMINISTRADOR
             if member.status == "administrator":
-                print("🛡️ ADMINISTRADOR → IGNORANDO")
+
+                print(
+                    "🛡️ ADMINISTRADOR → IGNORADO"
+                )
+                print("========================================")
                 return
 
         except Exception as e:
-            print(f"⚠️ Error comprobando administrador: {e}")
+
+            print(
+                f"⚠️ Error comprobando administrador: {e}"
+            )
 
     # =========================================================
-    # SI NO HAY ENLACE, NO HACER NADA
+    # 4. SI NO TIENE ENLACE, NO HACER NADA
     # =========================================================
 
     if not contiene_enlace(message):
+
         return
 
     # =========================================================
-    # DATOS DEL USUARIO
+    # 5. DATOS DEL USUARIO
     # =========================================================
 
     if usuario:
         nombre = usuario.full_name
+
     elif sender_chat:
         nombre = sender_chat.title
+
     else:
         nombre = "Usuario"
 
     # =========================================================
-    # ELIMINAR MENSAJE
+    # 6. ELIMINAR MENSAJE
     # =========================================================
 
     try:
@@ -159,7 +192,7 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     # =========================================================
-    # ADVERTENCIA
+    # 7. ENVIAR ADVERTENCIA
     # =========================================================
 
     advertencia = (
@@ -170,7 +203,7 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
 
         await context.bot.send_message(
-            chat_id=update.effective_chat.id,
+            chat_id=chat_actual.id,
             text=advertencia,
             parse_mode="HTML"
         )
@@ -184,6 +217,8 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(
             f"❌ NO SE PUDO ENVIAR LA ADVERTENCIA: {e}"
         )
+
+    print("========================================")
 
 
 def main():
