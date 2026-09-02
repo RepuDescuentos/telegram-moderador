@@ -12,7 +12,7 @@ URL_REGEX = re.compile(
 
 
 # =========================================================
-# ID DEL OWNER
+# CONFIGURACIÓN
 # =========================================================
 
 OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
@@ -40,17 +40,33 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not message:
         return
 
+    # =========================================================
+    # 1. PUBLICACIONES DIRECTAS DEL CANAL
+    # =========================================================
+    #
+    # MUY IMPORTANTE:
+    # Si Telegram nos está entregando una publicación del
+    # canal mediante channel_post, NO LA MODERAMOS NUNCA.
+    #
+    # Esto evita que el bot pueda borrar publicaciones
+    # originales del canal.
+    # =========================================================
+
+    if update.channel_post:
+        print("📢 PUBLICACIÓN DEL CANAL → IGNORADA")
+        return
+
     usuario = message.from_user
     sender_chat = message.sender_chat
     chat_actual = update.effective_chat
 
     # =========================================================
-    # INFORMACIÓN
+    # INFORMACIÓN PARA LOS LOGS
     # =========================================================
 
     print("========================================")
-    print("📩 NUEVO MENSAJE")
-    print(f"💬 CHAT ACTUAL: {chat_actual.id}")
+    print("📩 MENSAJE RECIBIDO")
+    print(f"💬 CHAT ID: {chat_actual.id}")
 
     if usuario:
         print(f"👤 USUARIO: {usuario.full_name}")
@@ -65,42 +81,43 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"👑 OWNER_ID: {OWNER_ID}")
 
     # =========================================================
-    # 1. EXCEPCIÓN DEL OWNER POR USER ID
+    # 2. OWNER POR USER ID
     # =========================================================
 
     if usuario and usuario.id == OWNER_ID:
-        print("👑 OWNER DETECTADO → MENSAJE IGNORADO")
+
+        print("👑 OWNER → MENSAJE IGNORADO")
         print("========================================")
         return
 
     # =========================================================
-    # 2. DETECTAR EL CANAL PRINCIPAL VINCULADO
-    # =========================================================
-    #
-    # Cuando estamos dentro del grupo de discusión, Telegram
-    # puede identificar los mensajes del canal principal
-    # mediante message.sender_chat.
-    #
-    # Telegram nos permite saber cuál es el canal vinculado
-    # al grupo mediante linked_chat_id.
+    # 3. COMPROBAR SI ES EL CANAL VINCULADO
     # =========================================================
 
     try:
 
-        chat_info = await context.bot.get_chat(chat_actual.id)
+        chat_info = await context.bot.get_chat(
+            chat_actual.id
+        )
 
         linked_chat_id = chat_info.linked_chat_id
 
-        print(f"🔗 CANAL VINCULADO: {linked_chat_id}")
+        print(
+            f"🔗 CANAL VINCULADO: {linked_chat_id}"
+        )
+
+        # Si el mensaje viene directamente del canal
+        # vinculado al grupo de discusión, se ignora.
 
         if (
             sender_chat
             and linked_chat_id
             and sender_chat.id == linked_chat_id
         ):
+
             print(
-                "👑 MENSAJE DEL CANAL PRINCIPAL "
-                "EN LA DISCUSIÓN → IGNORADO"
+                "📢 MENSAJE DEL CANAL PRINCIPAL "
+                "EN DISCUSIÓN → IGNORADO"
             )
             print("========================================")
             return
@@ -108,11 +125,11 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
 
         print(
-            f"⚠️ No se pudo comprobar el canal vinculado: {e}"
+            f"⚠️ Error obteniendo canal vinculado: {e}"
         )
 
     # =========================================================
-    # 3. COMPROBAR ADMINISTRADOR / OWNER DEL GRUPO
+    # 4. COMPROBAR ADMINISTRADOR / OWNER DEL GRUPO
     # =========================================================
 
     if usuario:
@@ -125,19 +142,17 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             print(
-                f"🔐 STATUS DEL USUARIO: {member.status}"
+                f"🔐 STATUS: {member.status}"
             )
 
-            # OWNER DEL GRUPO
             if member.status == "creator":
 
                 print(
-                    "👑 CREATOR/OWNER DEL GRUPO → IGNORADO"
+                    "👑 OWNER DEL GRUPO → IGNORADO"
                 )
                 print("========================================")
                 return
 
-            # ADMINISTRADOR
             if member.status == "administrator":
 
                 print(
@@ -153,28 +168,30 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     # =========================================================
-    # 4. SI NO TIENE ENLACE, NO HACER NADA
+    # 5. SI NO TIENE ENLACE → NO HACER NADA
     # =========================================================
 
     if not contiene_enlace(message):
-
         return
 
     # =========================================================
-    # 5. DATOS DEL USUARIO
+    # 6. NOMBRE
     # =========================================================
 
     if usuario:
+
         nombre = usuario.full_name
 
     elif sender_chat:
+
         nombre = sender_chat.title
 
     else:
+
         nombre = "Usuario"
 
     # =========================================================
-    # 6. ELIMINAR MENSAJE
+    # 7. ELIMINAR MENSAJE
     # =========================================================
 
     try:
@@ -188,15 +205,16 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
 
         print(
-            f"❌ NO SE PUDO ELIMINAR EL MENSAJE: {e}"
+            f"❌ NO SE PUDO ELIMINAR: {e}"
         )
 
     # =========================================================
-    # 7. ENVIAR ADVERTENCIA
+    # 8. ADVERTENCIA
     # =========================================================
 
     advertencia = (
-        f"⚠️ <b>{nombre}</b>, ¡Metete el enlace por el ORTO HIJUEPUTA! 😂\n\n"
+        f"⚠️ <b>{nombre}</b>, "
+        f"¡Metete el enlace por el ORTO HIJUEPUTA! 😂\n\n"
         "Esta prohibido publicar cualquier tipo de enlaces."
     )
 
@@ -215,7 +233,7 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
 
         print(
-            f"❌ NO SE PUDO ENVIAR LA ADVERTENCIA: {e}"
+            f"❌ NO SE PUDO ENVIAR ADVERTENCIA: {e}"
         )
 
     print("========================================")
@@ -240,10 +258,7 @@ def main():
     )
 
     port = int(
-        os.environ.get(
-            "PORT",
-            "10000"
-        )
+        os.environ.get("PORT", "10000")
     )
 
     application.run_webhook(
