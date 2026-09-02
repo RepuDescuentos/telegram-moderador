@@ -34,72 +34,132 @@ def contiene_enlace(message):
 
 
 async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     message = update.effective_message
 
-    if not message or not message.from_user:
+    if not message:
         return
+
+    # =========================================================
+    # INFORMACIÓN DEL MENSAJE
+    # =========================================================
 
     usuario = message.from_user
+    sender_chat = message.sender_chat
+
+    print("========================================")
+    print("📩 NUEVO MENSAJE")
+    print(f"💬 CHAT ID: {update.effective_chat.id}")
+
+    if usuario:
+        print(f"👤 USER: {usuario.full_name}")
+        print(f"🆔 USER ID: {usuario.id}")
+        print(f"👤 USERNAME: @{usuario.username}")
+
+    if sender_chat:
+        print(f"📢 SENDER CHAT: {sender_chat.title}")
+        print(f"📢 SENDER CHAT ID: {sender_chat.id}")
+        print(f"📢 SENDER CHAT TYPE: {sender_chat.type}")
+
+    print(f"👑 OWNER_ID CONFIGURADO: {OWNER_ID}")
+    print("========================================")
 
     # =========================================================
-    # EXCEPCIÓN DEL OWNER
-    # =========================================================
-    # Si el mensaje es del OWNER, el bot no hace absolutamente
-    # nada, aunque contenga enlaces.
+    # EXCEPCIÓN 1: OWNER POR USER ID
     # =========================================================
 
-    if OWNER_ID != 0 and usuario.id == OWNER_ID:
-        print(
-            f"👑 OWNER detectado: "
-            f"{usuario.full_name} ({usuario.id}). "
-            f"Mensaje ignorado."
-        )
+    if usuario and usuario.id == OWNER_ID:
+        print("👑 OWNER DETECTADO POR USER ID → IGNORANDO")
         return
 
     # =========================================================
-    # COMPROBAR SI ES ADMINISTRADOR
+    # EXCEPCIÓN 2: MENSAJE ENVIADO COMO CHAT/CANAL
+    # =========================================================
+    #
+    # En grupos de discusión Telegram puede utilizar
+    # message.sender_chat en lugar de from_user.
+    #
+    # Si existe sender_chat, comprobamos si ese chat
+    # corresponde al chat donde se está publicando.
+    #
+    # Esto evita que el bot trate automáticamente como
+    # usuario normal ciertos mensajes enviados como identidad
+    # del canal/chat.
     # =========================================================
 
-    try:
-        member = await context.bot.get_chat_member(
-            update.effective_chat.id,
-            usuario.id
-        )
+    if sender_chat:
 
-    except Exception as e:
-        print(f"Error comprobando administrador: {e}")
-        return
-
-    # Administradores y creador quedan exentos
-    if member.status in ("administrator", "creator"):
-        return
+        # Si el mensaje está enviado como el propio chat
+        # donde se encuentra el mensaje, no moderarlo.
+        if sender_chat.id == update.effective_chat.id:
+            print("📢 MENSAJE ENVIADO COMO EL CHAT → IGNORANDO")
+            return
 
     # =========================================================
-    # COMPROBAR ENLACE
+    # COMPROBAR ADMINISTRADOR / OWNER DEL GRUPO
+    # =========================================================
+
+    if usuario:
+
+        try:
+            member = await context.bot.get_chat_member(
+                update.effective_chat.id,
+                usuario.id
+            )
+
+            print(f"🔐 STATUS TELEGRAM: {member.status}")
+
+            # OWNER DEL GRUPO
+            if member.status == "creator":
+                print("👑 CREATOR/OWNER DEL GRUPO → IGNORANDO")
+                return
+
+            # ADMINISTRADORES
+            if member.status == "administrator":
+                print("🛡️ ADMINISTRADOR → IGNORANDO")
+                return
+
+        except Exception as e:
+            print(f"⚠️ Error comprobando administrador: {e}")
+
+    # =========================================================
+    # SI NO HAY ENLACE, NO HACER NADA
     # =========================================================
 
     if not contiene_enlace(message):
         return
 
-    nombre = usuario.full_name
+    # =========================================================
+    # DATOS DEL USUARIO
+    # =========================================================
+
+    if usuario:
+        nombre = usuario.full_name
+    elif sender_chat:
+        nombre = sender_chat.title
+    else:
+        nombre = "Usuario"
 
     # =========================================================
     # ELIMINAR MENSAJE
     # =========================================================
 
     try:
+
         await message.delete()
 
         print(
-            f"🗑️ Mensaje eliminado de "
-            f"{usuario.username or usuario.id}"
+            f"🗑️ MENSAJE ELIMINADO: {nombre}"
         )
 
     except Exception as e:
-        print(f"❌ No se pudo eliminar el mensaje: {e}")
+
+        print(
+            f"❌ NO SE PUDO ELIMINAR EL MENSAJE: {e}"
+        )
 
     # =========================================================
-    # ENVIAR ADVERTENCIA
+    # ADVERTENCIA
     # =========================================================
 
     advertencia = (
@@ -108,23 +168,34 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
+
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=advertencia,
             parse_mode="HTML"
         )
 
-        print(f"⚠️ Advertencia enviada a {nombre}")
+        print(
+            f"⚠️ ADVERTENCIA ENVIADA A: {nombre}"
+        )
 
     except Exception as e:
-        print(f"❌ NO se pudo enviar la advertencia: {e}")
+
+        print(
+            f"❌ NO SE PUDO ENVIAR LA ADVERTENCIA: {e}"
+        )
 
 
 def main():
+
     token = os.environ["BOT_TOKEN"]
     external_url = os.environ["RENDER_EXTERNAL_URL"]
 
-    application = Application.builder().token(token).build()
+    application = (
+        Application.builder()
+        .token(token)
+        .build()
+    )
 
     application.add_handler(
         MessageHandler(
@@ -133,7 +204,12 @@ def main():
         )
     )
 
-    port = int(os.environ.get("PORT", "10000"))
+    port = int(
+        os.environ.get(
+            "PORT",
+            "10000"
+        )
+    )
 
     application.run_webhook(
         listen="0.0.0.0",
