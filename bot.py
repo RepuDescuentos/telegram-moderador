@@ -1,4 +1,3 @@
-```python
 import os
 import re
 
@@ -14,11 +13,6 @@ URL_REGEX = re.compile(
 
 # =========================================================
 # ID DEL OWNER
-# =========================================================
-# Lo configuraremos como variable de entorno en Render.
-# Ejemplo: OWNER_ID=123456789
-#
-# Si no está configurado, queda en 0.
 # =========================================================
 
 OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
@@ -48,23 +42,22 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     usuario = message.from_user
 
     # =========================================================
-    # EXCEPCIÓN ABSOLUTA DEL OWNER
+    # EXCEPCIÓN DEL OWNER
     # =========================================================
-    # Esta comprobación se hace ANTES de revisar administradores.
-    # Así el OWNER queda protegido tanto en el canal principal
-    # como en el grupo/canal de discusión.
+    # Si el mensaje es del OWNER, el bot no hace absolutamente
+    # nada, aunque contenga enlaces.
     # =========================================================
 
     if OWNER_ID != 0 and usuario.id == OWNER_ID:
         print(
             f"👑 OWNER detectado: "
             f"{usuario.full_name} ({usuario.id}). "
-            f"Mensaje ignorado por moderación."
+            f"Mensaje ignorado."
         )
         return
 
     # =========================================================
-    # COMPROBAR ADMINISTRADORES
+    # COMPROBAR SI ES ADMINISTRADOR
     # =========================================================
 
     try:
@@ -72,16 +65,17 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
             update.effective_chat.id,
             usuario.id
         )
+
     except Exception as e:
         print(f"Error comprobando administrador: {e}")
         return
 
-    # Los administradores y creador quedan exentos
+    # Administradores y creador quedan exentos
     if member.status in ("administrator", "creator"):
         return
 
     # =========================================================
-    # SI NO CONTIENE ENLACE, NO HACER NADA
+    # COMPROBAR ENLACE
     # =========================================================
 
     if not contiene_enlace(message):
@@ -90,7 +84,7 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nombre = usuario.full_name
 
     # =========================================================
-    # 1. ELIMINAR EL MENSAJE
+    # ELIMINAR MENSAJE
     # =========================================================
 
     try:
@@ -105,7 +99,7 @@ async def moderar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"❌ No se pudo eliminar el mensaje: {e}")
 
     # =========================================================
-    # 2. ENVIAR ADVERTENCIA
+    # ENVIAR ADVERTENCIA
     # =========================================================
 
     advertencia = (
@@ -152,5 +146,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
-
